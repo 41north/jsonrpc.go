@@ -339,13 +339,6 @@ func (c *Client) Invoke(ctx context.Context, req Request, resp *Response) error 
 		return ErrNotConnected
 	}
 
-	// create a new request with a unique id
-	uniqueRequest := Request{
-		Method:  req.Method,
-		Params:  req.Params,
-		JsonRpc: "2.0",
-	}
-
 	id, err := uuid.NewUUID()
 	if err != nil {
 		return errors.Annotate(err, "failed to generate a uuid")
@@ -353,8 +346,9 @@ func (c *Client) Invoke(ctx context.Context, req Request, resp *Response) error 
 
 	key := id.String()
 
-	if err = uniqueRequest.WithStringId(key); err != nil {
-		return errors.Annotate(err, "failed to set request id")
+	uniqueRequest, err := NewRequest(req.Method(), req.Params(), RequestStringId(key))
+	if err != nil {
+		return err
 	}
 
 	// create a new invocation and store for later dispatch

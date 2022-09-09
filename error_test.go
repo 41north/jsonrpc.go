@@ -9,7 +9,7 @@ import (
 
 var dataBytes, _ = json.Marshal("Some data")
 
-var testCases = []struct {
+var errorTestCases = []struct {
 	value any
 	json  string
 }{
@@ -22,7 +22,7 @@ var testCases = []struct {
 }
 
 func TestError_Marshal(t *testing.T) {
-	for _, tt := range testCases {
+	for _, tt := range errorTestCases {
 		bytes, err := json.Marshal(tt.value)
 		assert.Nil(t, err, "failed to marshal to json")
 		assert.Equal(t, tt.json, string(bytes))
@@ -30,7 +30,7 @@ func TestError_Marshal(t *testing.T) {
 }
 
 func TestError_Unmarshal(t *testing.T) {
-	for _, tt := range testCases {
+	for _, tt := range errorTestCases {
 		var e Error
 		err := json.Unmarshal([]byte(tt.json), &e)
 		assert.Nil(t, err, "failed to unmarshal from json")
