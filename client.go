@@ -91,7 +91,7 @@ func newCloseHandler(conn *websocket.Conn, delegate func(code int, message strin
 type invocation struct {
 	key    string
 	req    Request
-	result chan async.Result[*Response]
+	result chan async.Result[Response]
 }
 
 func newInvocation(key string, req Request) invocation {
@@ -99,18 +99,18 @@ func newInvocation(key string, req Request) invocation {
 		key: key,
 		req: req,
 		// size 1 to prevent rendezvous and improve throughput
-		result: make(chan async.Result[*Response], 1),
+		result: make(chan async.Result[Response], 1),
 	}
 }
 
 func (i invocation) onError(err error) {
 	defer close(i.result)
-	i.result <- async.NewResultErr[*Response](err)
+	i.result <- async.NewResultErr[Response](err)
 }
 
-func (i invocation) onResponse(resp *Response) {
+func (i invocation) onResponse(resp Response) {
 	defer close(i.result)
-	i.result <- async.NewResult[*Response](resp)
+	i.result <- async.NewResult[Response](resp)
 }
 
 func (i invocation) cancel() {
@@ -303,21 +303,21 @@ func (c *Client) read(ctx context.Context) error {
 
 			} else {
 				// we assume this is a response
-				var resp Response
-				if err := json.Unmarshal(raw, &resp); err != nil {
+				resp, err := ResponseFromJSON(raw)
+				if err != nil {
 					log.WithError(err).Error("failed to unmarshal response")
 					break
 				}
 
 				// dispatch the response
-				c.onResponse(&resp)
+				c.onResponse(resp)
 			}
 		}
 	}
 }
 
-func (c *Client) onResponse(resp *Response) {
-	key, err := keyForResponse(resp)
+func (c *Client) onResponse(resp Response) {
+	key, err := keyForId(resp.Id())
 	if err != nil {
 		log.WithError(err).Error("failed to construct key for response")
 		return
@@ -333,22 +333,22 @@ func (c *Client) onResponse(resp *Response) {
 	inv.onResponse(resp)
 }
 
-func (c *Client) Invoke(ctx context.Context, req Request, resp *Response) error {
+func (c *Client) Invoke(ctx context.Context, req Request) (Response, error) {
 	// check if connected
 	if !c.isConnected() {
-		return ErrNotConnected
+		return nil, ErrNotConnected
 	}
 
 	id, err := uuid.NewUUID()
 	if err != nil {
-		return errors.Annotate(err, "failed to generate a uuid")
+		return nil, errors.Annotate(err, "failed to generate a uuid")
 	}
 
 	key := id.String()
 
 	uniqueRequest, err := NewRequest(req.Method(), req.Params(), RequestStringId(key))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// create a new invocation and store for later dispatch
@@ -377,17 +377,7 @@ func (c *Client) Invoke(ctx context.Context, req Request, resp *Response) error 
 
 	// wait for response
 	result := <-inv.result
-	invResp, err := result.Unwrap()
-
-	if err == nil {
-		// copy values from invocation response
-		resp.Id = invResp.Id
-		resp.JsonRpc = invResp.JsonRpc
-		resp.Result = invResp.Result
-		resp.Error = invResp.Error
-	}
-
-	return err
+	return result.Unwrap()
 }
 
 // Close stops request processing and releases resources.
@@ -426,14 +416,6 @@ func (c *Client) Close() {
 
 	c.log.Debug("closed")
 	c.transitionState(stateClosing, stateClosed)
-}
-
-func keyForResponse(resp *Response) (string, error) {
-	id, err := resp.UnmarshalId()
-	if err != nil {
-		return "", errors.Annotate(err, "failed to unmarshal id")
-	}
-	return keyForId(id)
 }
 
 func keyForId(id any) (key string, err error) {

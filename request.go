@@ -106,7 +106,7 @@ func (r *request) JsonRpc() string {
 	return r.jsonRpc
 }
 
-type requestDto = struct {
+type requestDto struct {
 	Id      json.RawMessage `json:"id,omitempty"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
@@ -132,33 +132,41 @@ func (r *request) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func UnmarshalId(data json.RawMessage) (any, error) {
+	// nil check first
+	if data == nil {
+		return nil, nil
+	}
+
+	var id any
+	if err := json.Unmarshal(data, &id); err != nil {
+		return nil, errors.Annotate(err, "failed to unmarshal id")
+	}
+
+	switch v := id.(type) {
+	case float64:
+		// numeric values are decoded by json.Unmarshal as float64
+		// we need to coerce into int64
+		id = int64(v)
+
+	case string:
+		// do nothing
+	default:
+		return nil, errors.New("invalid id type, expected int64 or string")
+	}
+
+	return id, nil
+}
+
 func RequestFromJSON(data []byte) (Request, error) {
 	var dto requestDto
 	if err := json.Unmarshal(data, &dto); err != nil {
 		return nil, err
 	}
 
-	var err error
-	var id any
-
-	if dto.Id != nil {
-		err = json.Unmarshal(dto.Id, &id)
-		if err != nil {
-			return nil, errors.Annotate(err, "failed to unmarshal id")
-		}
-
-		switch v := id.(type) {
-		case float64:
-			// numeric values are decoded by json.Unmarshal as float64
-			// we need to coerce into int64
-			id = int64(v)
-
-		case string:
-			// do nothing
-		default:
-			return nil, errors.New("invalid id type, expected int64 or string")
-		}
-
+	id, err := UnmarshalId(dto.Id)
+	if err != nil {
+		return nil, err
 	}
 
 	return &request{
