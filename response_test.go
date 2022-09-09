@@ -8,7 +8,7 @@ import (
 )
 
 var responseTestCases = []struct {
-	value Response
+	value *Response
 	json  string
 }{
 	{
@@ -55,8 +55,9 @@ func TestResponse_MarshalJSON(t *testing.T) {
 
 func TestResponse_UnmarshalJSON(t *testing.T) {
 	for _, tc := range responseTestCases {
-		r, err := ResponseFromJSON([]byte(tc.json))
+		var resp Response
+		err := json.Unmarshal([]byte(tc.json), &resp)
 		assert.Nil(t, err, "failed to unmarshal from json")
-		assert.Equal(t, tc.value, r)
+		assert.Equal(t, *tc.value, resp)
 	}
 }

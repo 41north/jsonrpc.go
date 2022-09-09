@@ -33,7 +33,7 @@ func TestClient_ServerDisconnect(t *testing.T) {
 	req, err := NewRequest("ping", nil)
 	assert.Nil(t, err)
 
-	resp, err := client.Send(req)
+	resp, err := client.Send(*req)
 	assert.Nil(t, resp)
 	assert.Error(t, ErrClosed, err)
 }
@@ -58,7 +58,7 @@ func TestClient_RequestIdMatching(t *testing.T) {
 		assert.Nil(t, err)
 		srv.testMessages <- testMessage{msgType: websocket.TextMessage, data: pongBytes}
 
-		resp, err := client.Send(ping)
+		resp, err := client.Send(*ping)
 		assert.Nil(t, err)
 		assert.Equal(t, pong, resp)
 	}
@@ -84,7 +84,7 @@ func TestClient_RequestHandling(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		req := newRequest("ping", nil, RequestNumericId(i))
-		expected = append(expected, req)
+		expected = append(expected, *req)
 
 		bytes, err := json.Marshal(req)
 		assert.Nil(t, err)
