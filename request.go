@@ -81,6 +81,7 @@ type Request interface {
 	Method() string
 	Params() json.RawMessage
 	JsonRpc() string
+	EnsureId(generator func() string)
 }
 
 type request struct {
@@ -104,6 +105,12 @@ func (r *request) Params() json.RawMessage {
 
 func (r *request) JsonRpc() string {
 	return r.jsonRpc
+}
+
+func (r *request) EnsureId(generator func() string) {
+	if r.id == nil {
+		r.id = generator()
+	}
 }
 
 type requestDto struct {
