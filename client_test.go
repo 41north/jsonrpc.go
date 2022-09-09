@@ -10,7 +10,7 @@ import (
 )
 
 func TestClient_BadHandshake(t *testing.T) {
-	srv := newWsServer()
+	srv := newWsServer(false)
 	defer srv.close()
 
 	dialer := WebSocketDialer{Url: srv.url("/")}
@@ -21,7 +21,7 @@ func TestClient_BadHandshake(t *testing.T) {
 }
 
 func TestClient_ServerDisconnect(t *testing.T) {
-	srv := newWsServer()
+	srv := newWsServer(false)
 	srv.closeOnNextMessage.Store(true)
 	defer srv.close()
 
@@ -39,7 +39,7 @@ func TestClient_ServerDisconnect(t *testing.T) {
 }
 
 func TestClient_RequestIdMatching(t *testing.T) {
-	srv := newWsServer()
+	srv := newWsServer(false)
 	defer srv.close()
 
 	dialer := WebSocketDialer{Url: srv.url("/ws")}
@@ -56,10 +56,42 @@ func TestClient_RequestIdMatching(t *testing.T) {
 
 		pongBytes, err := json.Marshal(pong)
 		assert.Nil(t, err)
-		srv.testResponses <- testMessage{msgType: websocket.TextMessage, data: pongBytes}
+		srv.testMessages <- testMessage{msgType: websocket.TextMessage, data: pongBytes}
 
 		resp, err := client.Send(ping)
 		assert.Nil(t, err)
 		assert.Equal(t, pong, resp)
 	}
+}
+
+func TestClient_RequestHandling(t *testing.T) {
+	srv := newWsServer(true)
+	defer srv.close()
+
+	dialer := WebSocketDialer{Url: srv.url("/ws")}
+	client := NewClient(dialer)
+
+	requests := make(chan Request, 16)
+	client.SetRequestHandler(func(req Request) {
+		requests <- req
+	})
+
+	err := client.Connect()
+	assert.Nil(t, err)
+
+	var expected []Request
+	var received []Request
+
+	for i := 0; i < 1000; i++ {
+		req := newRequest("ping", nil, RequestNumericId(i))
+		expected = append(expected, req)
+
+		bytes, err := json.Marshal(req)
+		assert.Nil(t, err)
+
+		srv.testMessages <- testMessage{msgType: websocket.TextMessage, data: bytes}
+		received = append(received, <-requests)
+	}
+
+	assert.Equal(t, expected, received)
 }

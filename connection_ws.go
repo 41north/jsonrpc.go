@@ -2,7 +2,6 @@ package jsonrpc
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -14,16 +13,11 @@ type webSocketConnection struct {
 	conn *websocket.Conn
 }
 
-func (w *webSocketConnection) Write(req Request) error {
-	bytes, err := json.Marshal(req)
-	if err != nil {
-		return errors.Annotate(err, "failed to marshal request to json")
-	}
-
-	return w.conn.WriteMessage(websocket.TextMessage, bytes)
+func (w *webSocketConnection) Write(data []byte) error {
+	return w.conn.WriteMessage(websocket.TextMessage, data)
 }
 
-func (w *webSocketConnection) Read() (Response, error) {
+func (w *webSocketConnection) Read() ([]byte, error) {
 	msgType, bytes, err := w.conn.ReadMessage()
 	if err != nil {
 
@@ -46,7 +40,7 @@ func (w *webSocketConnection) Read() (Response, error) {
 		return nil, errors.Annotate(err, "failed to read message")
 	}
 
-	return ResponseFromJSON(bytes)
+	return bytes, nil
 }
 
 func (w *webSocketConnection) Close() error {

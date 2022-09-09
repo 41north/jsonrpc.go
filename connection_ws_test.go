@@ -17,21 +17,23 @@ type testMessage struct {
 	data    []byte
 }
 
-func newWsServer() *wsServer {
+func newWsServer(push bool) *wsServer {
 	srv := wsServer{}
+	srv.push = push
 	srv.start()
 	return &srv
 }
 
 type wsServer struct {
 	srv                *httptest.Server
-	testResponses      chan testMessage
+	testMessages       chan testMessage
+	push               bool
 	closeOnNextMessage atomic.Bool
 }
 
 func (t *wsServer) start() {
 	t.srv = httptest.NewServer(t)
-	t.testResponses = make(chan testMessage, 16)
+	t.testMessages = make(chan testMessage, 16)
 }
 
 func (t *wsServer) close() {
@@ -62,21 +64,35 @@ func (t *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 	for {
-		_, _, err := c.ReadMessage()
-		if err != nil {
-			log.WithError(err).Error("failed to read message")
-			return
-		}
+		if t.push {
+			// notification testing
+			for msg := range t.testMessages {
+				err := c.WriteMessage(msg.msgType, msg.data)
+				if err != nil {
+					log.WithError(err).Error("failed to write message")
+					return
+				}
+			}
+		} else {
 
-		if t.closeOnNextMessage.Load() {
-			return
-		}
+			// normal request -> response
 
-		msg := <-t.testResponses
-		err = c.WriteMessage(msg.msgType, msg.data)
-		if err != nil {
-			log.WithError(err).Error("failed to write message")
-			return
+			_, _, err := c.ReadMessage()
+			if err != nil {
+				log.WithError(err).Error("failed to read message")
+				return
+			}
+
+			if t.closeOnNextMessage.Load() {
+				return
+			}
+
+			msg := <-t.testMessages
+			err = c.WriteMessage(msg.msgType, msg.data)
+			if err != nil {
+				log.WithError(err).Error("failed to write message")
+				return
+			}
 		}
 	}
 }
