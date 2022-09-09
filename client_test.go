@@ -33,8 +33,8 @@ func TestClient_ServerDisconnect(t *testing.T) {
 	req, err := NewRequest("ping", nil)
 	assert.Nil(t, err)
 
-	resp, err := client.Send(*req)
-	assert.Nil(t, resp)
+	var resp Response
+	err = client.Send(*req, &resp)
 	assert.Error(t, ErrClosed, err)
 }
 
@@ -58,9 +58,10 @@ func TestClient_RequestIdMatching(t *testing.T) {
 		assert.Nil(t, err)
 		srv.testMessages <- testMessage{msgType: websocket.TextMessage, data: pongBytes}
 
-		resp, err := client.Send(*ping)
+		var resp Response
+		err = client.Send(*ping, &resp)
 		assert.Nil(t, err)
-		assert.Equal(t, pong, resp)
+		assert.Equal(t, *pong, resp)
 	}
 }
 
