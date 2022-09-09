@@ -1,7 +1,7 @@
 # go-jsonrpc
 
 ![Build](https://github.com/41north/go-jsonrpc/actions/workflows/ci.yml/badge.svg)
-[![Coverage Status](https://coveralls.io/repos/github/41north/go-jsonrpc/badge.svg?branch=feat/readme)](https://coveralls.io/github/41north/go-jsonrpc?branch=feat/readme)
+[![Coverage Status](https://coveralls.io/repos/github/41north/go-jsonrpc/badge.svg?branch=main)](https://coveralls.io/github/41north/go-jsonrpc?branch=main)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Status: _EXPERIMENTAL_
