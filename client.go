@@ -27,8 +27,8 @@ type (
 type Client interface {
 	Connect() error
 
-	Send(req Request) (*Response, error)
-	SendContext(ctx context.Context, req Request) (*Response, error)
+	Send(req Request, resp *Response) error
+	SendContext(ctx context.Context, req Request, resp *Response) error
 	SendAsync(req Request) ResponseFuture
 
 	SetRequestHandler(handler RequestHandler)
@@ -129,17 +129,26 @@ func (c *client) Close() error {
 	}
 }
 
-func (c *client) Send(req Request) (*Response, error) {
-	return c.SendContext(context.Background(), req)
+func (c *client) Send(req Request, resp *Response) error {
+	return c.SendContext(context.Background(), req, resp)
 }
 
-func (c *client) SendContext(ctx context.Context, req Request) (*Response, error) {
+func (c *client) SendContext(ctx context.Context, req Request, resp *Response) error {
 	future := c.SendAsync(req)
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return ctx.Err()
 	case result := <-future.Get():
-		return result.Unwrap()
+		r, err := result.Unwrap()
+		if err != nil {
+			return err
+		}
+		// TODO can this copy be removed?
+		resp.Id = r.Id
+		resp.Result = r.Result
+		resp.Error = r.Error
+		resp.Version = r.Version
+		return nil
 	}
 }
 
