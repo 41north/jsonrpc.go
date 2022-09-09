@@ -44,3 +44,12 @@ func TestRequest_UnmarshalJSON(t *testing.T) {
 		assert.Equal(t, tc.value, r)
 	}
 }
+
+func TestRequest_UnmarshalParams(t *testing.T) {
+	expected := []string{"hello", "world"}
+	req := newRequest("ping", expected)
+	var actual []string
+	err := req.UnmarshalParams(&actual)
+	assert.Nil(t, err)
+	assert.Equal(t, expected, actual)
+}

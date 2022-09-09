@@ -80,6 +80,7 @@ type Request interface {
 	Id() any
 	Method() string
 	Params() json.RawMessage
+	UnmarshalParams(payload any) error
 	JsonRpc() string
 	EnsureId(generator func() string)
 }
@@ -101,6 +102,10 @@ func (r *request) Method() string {
 
 func (r *request) Params() json.RawMessage {
 	return r.params
+}
+
+func (r *request) UnmarshalParams(payload any) error {
+	return json.Unmarshal(r.params, payload)
 }
 
 func (r *request) JsonRpc() string {
