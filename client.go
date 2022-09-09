@@ -20,15 +20,15 @@ var (
 )
 
 type (
-	ResponseFuture = async.Future[async.Result[Response]]
+	ResponseFuture = async.Future[async.Result[*Response]]
 	RequestHandler = func(req Request)
 )
 
 type Client interface {
 	Connect() error
 
-	Send(req Request) (Response, error)
-	SendContext(ctx context.Context, req Request) (Response, error)
+	Send(req Request) (*Response, error)
+	SendContext(ctx context.Context, req Request) (*Response, error)
 	SendAsync(req Request) ResponseFuture
 
 	SetRequestHandler(handler RequestHandler)
@@ -88,37 +88,39 @@ func (c *client) readMessages() {
 		hasMethod := strings.Contains(string(bytes), "method")
 		if hasMethod {
 			// we assume this is a notification
-			req, err := RequestFromJSON(bytes)
-			if err != nil {
+			var req Request
+			if err := json.Unmarshal(bytes, &req); err != nil {
 				c.log.WithError(err).Error("unmarshal failure")
+			} else {
+				c.reqHandler(req)
 			}
-			c.reqHandler(req)
 		} else {
 			// otherwise we assume it is a response
-			resp, err := ResponseFromJSON(bytes)
-			if err != nil {
+			var resp Response
+			if err := json.Unmarshal(bytes, &resp); err != nil {
 				c.log.WithError(err).Error("unmarshal failure")
+			} else {
+				c.onResponse(&resp)
 			}
-			c.onResponse(resp)
 		}
 	}
 }
 
-func (c *client) onResponse(resp Response) {
-	future, ok := c.inFlight.LoadAndDelete(resp.Id())
+func (c *client) onResponse(resp *Response) {
+	future, ok := c.inFlight.LoadAndDelete(string(resp.Id))
 	if !ok {
 		c.log.
-			WithField("id", resp.Id()).
+			WithField("id", resp.Id).
 			Warn("response received with unrecognised id")
 	}
-	future.(ResponseFuture).Set(async.NewResult[Response](resp))
+	future.(ResponseFuture).Set(async.NewResult[*Response](resp))
 }
 
 func (c *client) Close() error {
 	if c.closed.CompareAndSwap(false, true) {
 		// cancel any in flight requests
 		c.inFlight.Range(func(key, value any) bool {
-			value.(ResponseFuture).Set(async.NewResultErr[Response](ErrClosed))
+			value.(ResponseFuture).Set(async.NewResultErr[*Response](ErrClosed))
 			return true
 		})
 		return nil
@@ -127,11 +129,11 @@ func (c *client) Close() error {
 	}
 }
 
-func (c *client) Send(req Request) (Response, error) {
+func (c *client) Send(req Request) (*Response, error) {
 	return c.SendContext(context.Background(), req)
 }
 
-func (c *client) SendContext(ctx context.Context, req Request) (Response, error) {
+func (c *client) SendContext(ctx context.Context, req Request) (*Response, error) {
 	future := c.SendAsync(req)
 	select {
 	case <-ctx.Done():
@@ -142,31 +144,34 @@ func (c *client) SendContext(ctx context.Context, req Request) (Response, error)
 }
 
 func (c *client) SendAsync(req Request) ResponseFuture {
-	// ensure a request id
-	req.EnsureId(idGen)
-
 	// create a future for returning the result
-	future := async.NewFuture[async.Result[Response]]()
+	future := async.NewFuture[async.Result[*Response]]()
+
+	// ensure a request id
+	if err := req.EnsureId(idGen); err != nil {
+		future.Set(async.NewResultErr[*Response](err))
+		return future
+	}
 
 	if c.closed.Load() {
 		// short circuit
-		future.Set(async.NewResultErr[Response](ErrClosed))
+		future.Set(async.NewResultErr[*Response](ErrClosed))
 		return future
 	}
 
 	// marshal to json
 	bytes, err := json.Marshal(req)
 	if err != nil {
-		future.Set(async.NewResultErr[Response](errors.Annotate(err, "failed to marshal request to json")))
+		future.Set(async.NewResultErr[*Response](errors.Annotate(err, "failed to marshal request to json")))
 		return future
 	}
 
 	// create an in flight entry
-	c.inFlight.Store(req.Id(), future)
+	c.inFlight.Store(string(req.Id), future)
 
 	// send the request
 	if err := c.conn.Write(bytes); err != nil {
-		future.Set(async.NewResultErr[Response](err))
+		future.Set(async.NewResultErr[*Response](err))
 	}
 
 	return future
