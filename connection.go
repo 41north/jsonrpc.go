@@ -5,8 +5,8 @@ import (
 )
 
 type Connection interface {
-	Write(req Request) error
-	Read() (Response, error)
+	Write(data []byte) error
+	Read() ([]byte, error)
 	Close() error
 }
 

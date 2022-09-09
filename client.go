@@ -2,6 +2,8 @@ package jsonrpc
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -17,7 +19,10 @@ var (
 	ErrClosed = errors.ConstError("connection has been closed")
 )
 
-type ResponseFuture = async.Future[async.Result[Response]]
+type (
+	ResponseFuture = async.Future[async.Result[Response]]
+	RequestHandler = func(req Request)
+)
 
 type Client interface {
 	Connect() error
@@ -26,15 +31,18 @@ type Client interface {
 	SendContext(ctx context.Context, req Request) (Response, error)
 	SendAsync(req Request) ResponseFuture
 
+	SetRequestHandler(handler RequestHandler)
+
 	Close() error
 }
 
 type client struct {
-	dialer   Dialer
-	conn     Connection
-	inFlight sync.Map
-	log      *log.Entry
-	closed   atomic.Bool
+	dialer     Dialer
+	conn       Connection
+	inFlight   sync.Map
+	log        *log.Entry
+	closed     atomic.Bool
+	reqHandler RequestHandler
 }
 
 func NewClient(dialer Dialer) Client {
@@ -53,15 +61,19 @@ func (c *client) Connect() error {
 	c.inFlight = sync.Map{}
 	c.log = log.WithField("connectionId", "tbd")
 
-	go c.readResponses()
+	go c.readMessages()
 
 	return nil
 }
 
-func (c *client) readResponses() {
+func (c *client) SetRequestHandler(handler RequestHandler) {
+	c.reqHandler = handler
+}
+
+func (c *client) readMessages() {
 	for !c.closed.Load() {
 		// read the next response
-		resp, err := c.conn.Read()
+		bytes, err := c.conn.Read()
 		if err != nil {
 			// set the client has closed and break out of the read loop
 			if err == ErrClosed {
@@ -72,14 +84,34 @@ func (c *client) readResponses() {
 			// otherwise log the error
 			c.log.WithError(err).Error("read failure")
 		}
-		future, ok := c.inFlight.LoadAndDelete(resp.Id())
-		if !ok {
-			c.log.
-				WithField("id", resp.Id()).
-				Warn("response received with unrecognised id")
+
+		hasMethod := strings.Contains(string(bytes), "method")
+		if hasMethod {
+			// we assume this is a notification
+			req, err := RequestFromJSON(bytes)
+			if err != nil {
+				c.log.WithError(err).Error("unmarshal failure")
+			}
+			c.reqHandler(req)
+		} else {
+			// otherwise we assume it is a response
+			resp, err := ResponseFromJSON(bytes)
+			if err != nil {
+				c.log.WithError(err).Error("unmarshal failure")
+			}
+			c.onResponse(resp)
 		}
-		future.(ResponseFuture).Set(async.NewResult[Response](resp))
 	}
+}
+
+func (c *client) onResponse(resp Response) {
+	future, ok := c.inFlight.LoadAndDelete(resp.Id())
+	if !ok {
+		c.log.
+			WithField("id", resp.Id()).
+			Warn("response received with unrecognised id")
+	}
+	future.(ResponseFuture).Set(async.NewResult[Response](resp))
 }
 
 func (c *client) Close() error {
@@ -122,11 +154,18 @@ func (c *client) SendAsync(req Request) ResponseFuture {
 		return future
 	}
 
+	// marshal to json
+	bytes, err := json.Marshal(req)
+	if err != nil {
+		future.Set(async.NewResultErr[Response](errors.Annotate(err, "failed to marshal request to json")))
+		return future
+	}
+
 	// create an in flight entry
 	c.inFlight.Store(req.Id(), future)
 
 	// send the request
-	if err := c.conn.Write(req); err != nil {
+	if err := c.conn.Write(bytes); err != nil {
 		future.Set(async.NewResultErr[Response](err))
 	}
 
