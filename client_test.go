@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gorilla/websocket"
@@ -27,6 +28,13 @@ func TestClient_ServerDisconnect(t *testing.T) {
 
 	dialer := WebSocketDialer{Url: srv.url("/ws")}
 	client := NewClient(dialer)
+
+	// capture close errors
+	closeError := atomic.Value{}
+	client.SetCloseHandler(func(err error) {
+		closeError.Store(err)
+	})
+
 	err := client.Connect()
 	assert.Nil(t, err)
 
@@ -36,6 +44,7 @@ func TestClient_ServerDisconnect(t *testing.T) {
 	var resp Response
 	err = client.Send(*req, &resp)
 	assert.Error(t, ErrClosed, err)
+	assert.Equal(t, ErrClosed, closeError.Load())
 }
 
 func TestClient_RequestIdMatching(t *testing.T) {
