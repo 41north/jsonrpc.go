@@ -22,6 +22,7 @@ var (
 type (
 	ResponseFuture = async.Future[async.Result[*Response]]
 	RequestHandler = func(req Request)
+	CloseHandler   = func(err error)
 )
 
 type Client interface {
@@ -31,18 +32,21 @@ type Client interface {
 	SendContext(ctx context.Context, req Request, resp *Response) error
 	SendAsync(req Request) ResponseFuture
 
+	SetCloseHandler(handler CloseHandler)
 	SetRequestHandler(handler RequestHandler)
 
 	Close() error
 }
 
 type client struct {
-	dialer     Dialer
-	conn       Connection
-	inFlight   sync.Map
-	log        *log.Entry
-	closed     atomic.Bool
-	reqHandler RequestHandler
+	dialer       Dialer
+	conn         Connection
+	inFlight     sync.Map
+	log          *log.Entry
+	closed       atomic.Bool
+	reqHandler   RequestHandler
+	closeError   error
+	closeHandler CloseHandler
 }
 
 func NewClient(dialer Dialer) Client {
@@ -70,6 +74,10 @@ func (c *client) SetRequestHandler(handler RequestHandler) {
 	c.reqHandler = handler
 }
 
+func (c *client) SetCloseHandler(handler CloseHandler) {
+	c.closeHandler = handler
+}
+
 func (c *client) readMessages() {
 	for !c.closed.Load() {
 		// read the next response
@@ -77,6 +85,7 @@ func (c *client) readMessages() {
 		if err != nil {
 			// set the client has closed and break out of the read loop
 			if err == ErrClosed {
+				c.closeError = err
 				c.Close()
 				break
 			}
@@ -123,6 +132,11 @@ func (c *client) Close() error {
 			value.(ResponseFuture).Set(async.NewResultErr[*Response](ErrClosed))
 			return true
 		})
+
+		if c.closeHandler != nil {
+			c.closeHandler(c.closeError)
+		}
+
 		return nil
 	} else {
 		return ErrClosed
