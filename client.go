@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/41north/go-async"
+	"github.com/41north/async.go"
 	"github.com/juju/errors"
 	gonanoid "github.com/matoous/go-nanoid"
 	log "github.com/sirupsen/logrus"
@@ -122,7 +122,7 @@ func (c *client) onResponse(resp *Response) {
 			WithField("id", resp.Id).
 			Warn("response received with unrecognised id")
 	}
-	future.(ResponseFuture).Set(async.NewResult[*Response](resp))
+	future.(ResponseFuture).Set(async.NewResultValue[*Response](resp))
 }
 
 func (c *client) Close() error {

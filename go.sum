@@ -1,3 +1,5 @@
+github.com/41north/async.go v0.0.0-20220930091129-528891be0173 h1:09+9Iva1kLQ1vixLA3wYFC5moOdFVmAEgQh0CGdHnOU=
+github.com/41north/async.go v0.0.0-20220930091129-528891be0173/go.mod h1:tJP3qKeQXBuvhdZiy0mmK2z22CI00v/N3O5osZ2fBAM=
 github.com/41north/go-async v0.0.0-20220907210046-9b90237424e4 h1:WHNJuqyNSM/siLSpnIiNlabARHaYc4iwaGcl7h1KqWw=
 github.com/41north/go-async v0.0.0-20220907210046-9b90237424e4/go.mod h1:fjhQDTcSFseY4T7Vt+Cg5J2fiB9kHFkUg7hZRSxV+Sw=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
