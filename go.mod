@@ -1,4 +1,4 @@
-module github.com/41north/go-jsonrpc
+module github.com/41north/jsonrpc.go
 
 go 1.19
 
