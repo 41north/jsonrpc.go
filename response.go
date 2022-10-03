@@ -48,14 +48,6 @@ func DefaultResponseOptions() ResponseOptions {
 	}
 }
 
-func newResponse(result any, options ...ResponseOption) *Response {
-	resp, err := NewResponse(result, options...)
-	if err != nil {
-		panic(err)
-	}
-	return resp
-}
-
 func NewResponse(result any, options ...ResponseOption) (*Response, error) {
 	opts := DefaultResponseOptions()
 	for _, opt := range options {
@@ -70,14 +62,6 @@ func NewResponse(result any, options ...ResponseOption) (*Response, error) {
 	}
 
 	return &Response{Id: opts.Id, Result: resultBytes, Error: nil, Version: opts.Version}, nil
-}
-
-func newResponseError(error Error, options ...ResponseOption) *Response {
-	resp, err := NewResponseError(error, options...)
-	if err != nil {
-		panic(err)
-	}
-	return resp
 }
 
 func NewResponseError(error Error, options ...ResponseOption) (*Response, error) {
