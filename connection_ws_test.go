@@ -1,4 +1,4 @@
-package jsonrpc
+package jsonrpc_test
 
 import (
 	"net/http"

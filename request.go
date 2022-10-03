@@ -48,16 +48,6 @@ func DefaultRequestOptions() RequestOptions {
 	}
 }
 
-// newRequest is an internal test utility for creating request objects without having to handle
-// the possible error, panicking instead.
-func newRequest(method string, params any, options ...RequestOption) *Request {
-	r, err := NewRequest(method, params, options...)
-	if err != nil {
-		panic(err)
-	}
-	return r
-}
-
 func NewRequest(method string, params any, options ...RequestOption) (*Request, error) {
 	opts := DefaultRequestOptions()
 	for _, opt := range options {

@@ -1,8 +1,10 @@
-package jsonrpc
+package jsonrpc_test
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/41north/jsonrpc.go"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -13,12 +15,12 @@ var errorTestCases = []struct {
 	value any
 	json  string
 }{
-	{ErrInvalidRequest, "{\"code\":-32600,\"message\":\"invalid request\"}"},
-	{ErrMethodNotFound, "{\"code\":-32601,\"message\":\"method not found\"}"},
-	{ErrInvalidParams, "{\"code\":-32602,\"message\":\"invalid params\"}"},
-	{ErrInternal, "{\"code\":-32603,\"message\":\"internal error\"}"},
-	{ErrParse, "{\"code\":-32700,\"message\":\"parse error\"}"},
-	{Error{123, "error with data", dataBytes}, "{\"code\":123,\"message\":\"error with data\",\"data\":\"Some data\"}"},
+	{jsonrpc.ErrInvalidRequest, "{\"code\":-32600,\"message\":\"invalid request\"}"},
+	{jsonrpc.ErrMethodNotFound, "{\"code\":-32601,\"message\":\"method not found\"}"},
+	{jsonrpc.ErrInvalidParams, "{\"code\":-32602,\"message\":\"invalid params\"}"},
+	{jsonrpc.ErrInternal, "{\"code\":-32603,\"message\":\"internal error\"}"},
+	{jsonrpc.ErrParse, "{\"code\":-32700,\"message\":\"parse error\"}"},
+	{jsonrpc.Error{123, "error with data", dataBytes}, "{\"code\":123,\"message\":\"error with data\",\"data\":\"Some data\"}"},
 }
 
 func TestError_Marshal(t *testing.T) {
@@ -31,7 +33,7 @@ func TestError_Marshal(t *testing.T) {
 
 func TestError_Unmarshal(t *testing.T) {
 	for _, tt := range errorTestCases {
-		var e Error
+		var e jsonrpc.Error
 		err := json.Unmarshal([]byte(tt.json), &e)
 		assert.Nil(t, err, "failed to unmarshal from json")
 		assert.Equal(t, tt.value, e)
